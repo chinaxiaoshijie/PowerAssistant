@@ -253,3 +253,98 @@ class FeishuTaskListResponse(BaseModel):
     has_more: bool = Field(default=False)
     items: List[FeishuTaskRaw] = Field(default_factory=list)
     page_token: Optional[str] = Field(None, alias="page_token")
+
+
+class FeishuProjectRaw(BaseModel):
+    """Raw project data from Feishu Project API."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    project_id: str = Field(..., alias="project_id")
+    name: str = Field(..., description="Project name")
+    description: Optional[str] = Field(None, description="Project description")
+    status: str = Field(..., description="Project status")
+    start_time: Optional[int] = Field(
+        None,
+        alias="start_time",
+        description="Start timestamp in milliseconds",
+    )
+    end_time: Optional[int] = Field(
+        None,
+        alias="end_time",
+        description="End timestamp in milliseconds",
+    )
+    owner_id: Optional[str] = Field(
+        None,
+        alias="owner_id",
+        description="Project owner user ID",
+    )
+    member_ids: List[str] = Field(
+        default_factory=list,
+        alias="member_ids",
+        description="Project member user IDs",
+    )
+    created_time: Optional[int] = Field(
+        None,
+        alias="created_time",
+        description="Creation timestamp in milliseconds",
+    )
+    updated_time: Optional[int] = Field(
+        None,
+        alias="updated_time",
+        description="Last update timestamp in milliseconds",
+    )
+
+    @field_validator("member_ids", mode="before")
+    @classmethod
+    def ensure_list(cls, v: Any) -> List[str]:
+        """Ensure member_ids is a list."""
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return v
+        return [v]
+
+
+class FeishuProjectListResponse(BaseModel):
+    """Response schema for project list API."""
+
+    has_more: bool = Field(default=False)
+    items: List[FeishuProjectRaw] = Field(default_factory=list)
+    page_token: Optional[str] = Field(None, alias="page_token")
+
+
+class FeishuOKRRaw(BaseModel):
+    """Raw OKR data from Feishu OKR API."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    okr_id: str = Field(..., alias="okr_id")
+    objective: str = Field(..., description="Objective description")
+    key_results: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        alias="key_results",
+        description="Key results",
+    )
+    progress: int = Field(default=0, description="Progress percentage (0-100)")
+    owner_id: Optional[str] = Field(
+        None,
+        alias="owner_id",
+        description="OKR owner user ID",
+    )
+    cycle: str = Field(..., description="OKR cycle (e.g., 2026-Q1)")
+    parent_okr_id: Optional[str] = Field(
+        None,
+        alias="parent_okr_id",
+        description="Parent OKR ID for alignment",
+    )
+    created_time: Optional[int] = Field(
+        None,
+        alias="created_time",
+        description="Creation timestamp in milliseconds",
+    )
+    updated_time: Optional[int] = Field(
+        None,
+        alias="updated_time",
+        description="Last update timestamp in milliseconds",
+    )

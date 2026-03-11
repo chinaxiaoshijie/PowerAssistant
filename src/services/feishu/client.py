@@ -839,3 +839,277 @@ class FeishuClient:
         self._logger.debug("document_permissions_retrieved", document_id=document_id)
 
         return data
+
+    # ==================== Task API Methods ====================
+
+    async def list_tasks(
+        self,
+        user_id: Optional[str] = None,
+        page_size: int = 50,
+        completed: Optional[bool] = None,
+    ) -> List[Dict[str, Any]]:
+        """List tasks from Feishu Task (TaskBit).
+
+        Args:
+            user_id: Filter by assignee user ID (None for all tasks)
+            page_size: Number of results per page (max 50)
+            completed: Filter by completion status (None for all)
+
+        Returns:
+            List of task objects
+        """
+        self._logger.info(
+            "listing_tasks",
+            user_id=user_id,
+            page_size=page_size,
+            completed=completed,
+        )
+
+        tasks: List[Dict[str, Any]] = []
+        page_token: Optional[str] = None
+
+        while True:
+            params: Dict[str, Any] = {"page_size": min(page_size, 50)}
+            if user_id:
+                params["user_id"] = user_id
+            if completed is not None:
+                params["completed"] = str(completed).lower()
+            if page_token:
+                params["page_token"] = page_token
+
+            try:
+                data = await self._make_request(
+                    "GET",
+                    "/task/v1/tasks",
+                    params=params,
+                )
+
+                items = data.get("items", [])
+                tasks.extend(items)
+
+                self._logger.debug(
+                    "tasks_page_fetched",
+                    count=len(items),
+                    has_more=data.get("has_more", False),
+                )
+
+                if not data.get("has_more", False):
+                    break
+
+                page_token = data.get("page_token")
+
+            except FeishuAPIError as e:
+                # Task API might not be available or insufficient permissions
+                self._logger.warning(
+                    "task_api_not_available",
+                    error=str(e),
+                )
+                break
+
+        self._logger.info(
+            "tasks_listed",
+            total_count=len(tasks),
+        )
+
+        return tasks
+
+    async def get_task(self, task_id: str) -> Dict[str, Any]:
+        """Get detailed task information.
+
+        Args:
+            task_id: Feishu task ID
+
+        Returns:
+            Task details
+        """
+        self._logger.info("getting_task", task_id=task_id)
+
+        data = await self._make_request(
+            "GET",
+            f"/task/v1/tasks/{task_id}",
+        )
+
+        self._logger.debug("task_retrieved", task_id=task_id)
+
+        return data.get("task", data)
+
+    # ==================== Project API Methods ====================
+
+    async def list_projects(
+        self,
+        user_id: Optional[str] = None,
+        page_size: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """List projects from Feishu Project (ProjectBit).
+
+        Args:
+            user_id: Filter by member user ID (None for all projects)
+            page_size: Number of results per page (max 50)
+
+        Returns:
+            List of project objects
+        """
+        self._logger.info(
+            "listing_projects",
+            user_id=user_id,
+            page_size=page_size,
+        )
+
+        projects: List[Dict[str, Any]] = []
+        page_token: Optional[str] = None
+
+        while True:
+            params: Dict[str, Any] = {"page_size": min(page_size, 50)}
+            if user_id:
+                params["user_id"] = user_id
+            if page_token:
+                params["page_token"] = page_token
+
+            try:
+                data = await self._make_request(
+                    "GET",
+                    "/project/v1/projects",
+                    params=params,
+                )
+
+                items = data.get("items", [])
+                projects.extend(items)
+
+                self._logger.debug(
+                    "projects_page_fetched",
+                    count=len(items),
+                    has_more=data.get("has_more", False),
+                )
+
+                if not data.get("has_more", False):
+                    break
+
+                page_token = data.get("page_token")
+
+            except FeishuAPIError as e:
+                # Project API might not be available
+                self._logger.warning(
+                    "project_api_not_available",
+                    error=str(e),
+                )
+                break
+
+        self._logger.info(
+            "projects_listed",
+            total_count=len(projects),
+        )
+
+        return projects
+
+    async def get_project(self, project_id: str) -> Dict[str, Any]:
+        """Get detailed project information.
+
+        Args:
+            project_id: Feishu project ID
+
+        Returns:
+            Project details
+        """
+        self._logger.info("getting_project", project_id=project_id)
+
+        data = await self._make_request(
+            "GET",
+            f"/project/v1/projects/{project_id}",
+        )
+
+        self._logger.debug("project_retrieved", project_id=project_id)
+
+        return data.get("project", data)
+
+    # ==================== OKR API Methods ====================
+
+    async def list_okrs(
+        self,
+        user_id: Optional[str] = None,
+        cycle: Optional[str] = None,
+        page_size: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """List OKRs from Feishu OKR.
+
+        Args:
+            user_id: Filter by owner user ID (None for all OKRs)
+            cycle: Filter by OKR cycle (e.g., "2026-Q1")
+            page_size: Number of results per page (max 50)
+
+        Returns:
+            List of OKR objects
+        """
+        self._logger.info(
+            "listing_okrs",
+            user_id=user_id,
+            cycle=cycle,
+            page_size=page_size,
+        )
+
+        okrs: List[Dict[str, Any]] = []
+        page_token: Optional[str] = None
+
+        while True:
+            params: Dict[str, Any] = {"page_size": min(page_size, 50)}
+            if user_id:
+                params["user_id"] = user_id
+            if cycle:
+                params["cycle"] = cycle
+            if page_token:
+                params["page_token"] = page_token
+
+            try:
+                data = await self._make_request(
+                    "GET",
+                    "/okr/v1/okrs",
+                    params=params,
+                )
+
+                items = data.get("items", [])
+                okrs.extend(items)
+
+                self._logger.debug(
+                    "okrs_page_fetched",
+                    count=len(items),
+                    has_more=data.get("has_more", False),
+                )
+
+                if not data.get("has_more", False):
+                    break
+
+                page_token = data.get("page_token")
+
+            except FeishuAPIError as e:
+                # OKR API might not be available
+                self._logger.warning(
+                    "okr_api_not_available",
+                    error=str(e),
+                )
+                break
+
+        self._logger.info(
+            "okrs_listed",
+            total_count=len(okrs),
+        )
+
+        return okrs
+
+    async def get_okr(self, okr_id: str) -> Dict[str, Any]:
+        """Get detailed OKR information.
+
+        Args:
+            okr_id: Feishu OKR ID
+
+        Returns:
+            OKR details
+        """
+        self._logger.info("getting_okr", okr_id=okr_id)
+
+        data = await self._make_request(
+            "GET",
+            f"/okr/v1/okrs/{okr_id}",
+        )
+
+        self._logger.debug("okr_retrieved", okr_id=okr_id)
+
+        return data.get("okr", data)

@@ -17,6 +17,9 @@ from src.database import database
 from src.services.ai_intelligence import IntelligenceGatheringService
 from src.services.feishu.client import FeishuClient
 from src.services.feishu.org_sync import OrganizationSyncService
+from src.services.feishu.task_sync import TaskSyncService
+from src.services.feishu.project_sync import ProjectSyncService
+from src.services.feishu.okr_sync import OKRSyncService
 
 import structlog
 
@@ -81,6 +84,84 @@ class IntelligenceScheduler:
         except Exception as e:
             self._logger.error("feishu_sync_task_failed", error=str(e))
 
+    async def _feishu_task_sync_task(self) -> None:
+        """Sync Feishu tasks data."""
+        self._logger.info("starting_feishu_task_sync_task")
+
+        try:
+            async with FeishuClient() as client:
+                session = await self._get_db_session()
+                try:
+                    sync_service = TaskSyncService(session, client)
+                    stats = await sync_service.full_sync()
+                    self._logger.info(
+                        "feishu_tasks_synced",
+                        fetched=stats.records_fetched,
+                        created=stats.records_created,
+                        updated=stats.records_updated,
+                    )
+                    await session.commit()
+                except Exception as e:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
+
+        except Exception as e:
+            self._logger.error("feishu_task_sync_task_failed", error=str(e))
+
+    async def _feishu_project_sync_task(self) -> None:
+        """Sync Feishu projects data."""
+        self._logger.info("starting_feishu_project_sync_task")
+
+        try:
+            async with FeishuClient() as client:
+                session = await self._get_db_session()
+                try:
+                    sync_service = ProjectSyncService(session, client)
+                    stats = await sync_service.full_sync()
+                    self._logger.info(
+                        "feishu_projects_synced",
+                        fetched=stats.records_fetched,
+                        created=stats.records_created,
+                        updated=stats.records_updated,
+                    )
+                    await session.commit()
+                except Exception as e:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
+
+        except Exception as e:
+            self._logger.error("feishu_project_sync_task_failed", error=str(e))
+
+    async def _feishu_okr_sync_task(self) -> None:
+        """Sync Feishu OKRs data."""
+        self._logger.info("starting_feishu_okr_sync_task")
+
+        try:
+            async with FeishuClient() as client:
+                session = await self._get_db_session()
+                try:
+                    sync_service = OKRSyncService(session, client)
+                    stats = await sync_service.full_sync()
+                    self._logger.info(
+                        "feishu_okrs_synced",
+                        fetched=stats.records_fetched,
+                        created=stats.records_created,
+                        updated=stats.records_updated,
+                    )
+                    await session.commit()
+                except Exception as e:
+                    await session.rollback()
+                    raise
+                finally:
+                    await session.close()
+
+        except Exception as e:
+            self._logger.error("feishu_okr_sync_task_failed", error=str(e))
+
     def schedule_feishu_sync(
         self,
         hours: int = 1,
@@ -107,6 +188,84 @@ class IntelligenceScheduler:
             job_id=job.id,
         )
 
+    def schedule_feishu_task_sync(
+        self,
+        hours: int = 2,
+    ) -> None:
+        """Schedule Feishu task sync.
+
+        Args:
+            hours: Interval in hours
+        """
+        job_id = "feishu_task_sync"
+
+        job = self.scheduler.add_job(
+            func=self._feishu_task_sync_task,
+            trigger=IntervalTrigger(hours=hours),
+            id=job_id,
+            name="Sync Feishu tasks",
+            replace_existing=True,
+        )
+
+        self._jobs[job_id] = job.id
+        self._logger.info(
+            "scheduled_feishu_task_sync",
+            hours=hours,
+            job_id=job.id,
+        )
+
+    def schedule_feishu_project_sync(
+        self,
+        hours: int = 4,
+    ) -> None:
+        """Schedule Feishu project sync.
+
+        Args:
+            hours: Interval in hours
+        """
+        job_id = "feishu_project_sync"
+
+        job = self.scheduler.add_job(
+            func=self._feishu_project_sync_task,
+            trigger=IntervalTrigger(hours=hours),
+            id=job_id,
+            name="Sync Feishu projects",
+            replace_existing=True,
+        )
+
+        self._jobs[job_id] = job.id
+        self._logger.info(
+            "scheduled_feishu_project_sync",
+            hours=hours,
+            job_id=job.id,
+        )
+
+    def schedule_feishu_okr_sync(
+        self,
+        hours: int = 6,
+    ) -> None:
+        """Schedule Feishu OKR sync.
+
+        Args:
+            hours: Interval in hours
+        """
+        job_id = "feishu_okr_sync"
+
+        job = self.scheduler.add_job(
+            func=self._feishu_okr_sync_task,
+            trigger=IntervalTrigger(hours=hours),
+            id=job_id,
+            name="Sync Feishu OKRs",
+            replace_existing=True,
+        )
+
+        self._jobs[job_id] = job.id
+        self._logger.info(
+            "scheduled_feishu_okr_sync",
+            hours=hours,
+            job_id=job.id,
+        )
+
     def setup_default_schedule(self) -> None:
         """Setup default task schedule."""
         self._logger.info("setting_up_default_schedule")
@@ -128,6 +287,15 @@ class IntelligenceScheduler:
 
         # Sync Feishu organization every 1 hour
         self.schedule_feishu_sync(hours=1)
+
+        # Sync Feishu tasks every 2 hours
+        self.schedule_feishu_task_sync(hours=2)
+
+        # Sync Feishu projects every 4 hours
+        self.schedule_feishu_project_sync(hours=4)
+
+        # Sync Feishu OKRs every 6 hours
+        self.schedule_feishu_okr_sync(hours=6)
 
         self._logger.info("default_schedule_configured")
 
@@ -155,8 +323,6 @@ class IntelligenceScheduler:
 
         except Exception as e:
             self._logger.error("feishu_sync_task_failed", error=str(e))
-
-    async def _crawl_task(self, source_type: str, limit: int = 50) -> None:
         """Crawl task wrapper.
 
         Args:
@@ -319,27 +485,6 @@ class IntelligenceScheduler:
             time=f"{hour:02d}:{minute:02d}",
             job_id=job.id,
         )
-
-    def setup_default_schedule(self) -> None:
-        """Setup default task schedule."""
-        self._logger.info("setting_up_default_schedule")
-
-        # Crawl arXiv every 6 hours
-        self.schedule_crawl("arxiv", hours=6, limit=50)
-
-        # Crawl GitHub every 6 hours (offset by 1 hour)
-        self.schedule_crawl("github", hours=6, limit=30)
-
-        # Crawl Hacker News every 3 hours
-        self.schedule_crawl("hackernews", hours=3, limit=20)
-
-        # Analyze pending items every 30 minutes
-        self.schedule_analysis(minutes=30, batch_size=20)
-
-        # Generate daily report at 9:00 AM
-        self.schedule_daily_report(hour=9, minute=0)
-
-        self._logger.info("default_schedule_configured")
 
     def start(self) -> None:
         """Start the scheduler."""
