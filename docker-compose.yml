@@ -1,0 +1,157 @@
+version: "3.8"
+
+services:
+  # ========================================
+  # PostgreSQL Database
+  # ========================================
+  db:
+    image: postgres:15-alpine
+    container_name: malong_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: malong_management
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - malong_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================
+  # Redis Cache (Optional)
+  # ========================================
+  redis:
+    image: redis:7-alpine
+    container_name: malong_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - malong_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================
+  # Application Service
+  # ========================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: malong_app
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      # Override database URL for Docker networking
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/malong_management
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - malong_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ========================================
+  # Database Migration Service (One-time)
+  # ========================================
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: malong_migration
+    env_file:
+      - .env.docker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/malong_management
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - malong_network
+    command: >
+      sh -c "echo '⏳ Waiting for database...' &&
+             sleep 5 &&
+             echo '🚀 Running database migrations...' &&
+             alembic upgrade head &&
+             echo '✅ Migration completed successfully'"
+    restart: "no"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ========================================
+  # Adminer (Database Management UI - Optional)
+  # ========================================
+  adminer:
+    image: adminer:4
+    container_name: malong_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - malong_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  malong_network:
+    driver: bridge
+    name: malong_network

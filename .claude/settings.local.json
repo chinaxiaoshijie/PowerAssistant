@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(cp:*)",
+      "Bash(xargs -n1 basename)",
+      "Bash(npx:*)",
+      "Bash(chcp 65001:*)",
+      "Read(//c/Users/aston/**)",
+      "Bash(test -d everything-claude-code)",
+      "Bash(bash:*)",
+      "Bash(grep:*)",
+      "Bash(ls -1 python-* django-*)",
+      "Bash(exit 0:*)"
+    ]
+  }
+}

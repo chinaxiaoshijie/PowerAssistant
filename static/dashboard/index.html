@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 情报中心 - 管理助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .relevance-high { background: linear-gradient(90deg, #10b981 0%, #059669 100%); }
+        .relevance-medium { background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%); }
+        .relevance-low { background: linear-gradient(90deg, #6b7280 0%, #4b5563 100%); }
+        .category-algorithm { color: #8b5cf6; background: #ede9fe; }
+        .category-product { color: #ec4899; background: #fce7f3; }
+        .category-tool { color: #06b6d4; background: #cffafe; }
+        .category-paper { color: #f59e0b; background: #fef3c7; }
+        .category-news { color: #10b981; background: #d1fae5; }
+        .category-tutorial { color: #6366f1; background: #e0e7ff; }
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-soft {
+            animation: pulse-soft 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="app">
+        <!-- Header -->
+        <header class="gradient-bg text-white shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold">AI 情报中心</h1>
+                            <p class="text-sm text-white/70">Malong Technologies 管理助手</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button @click="refreshData" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2">
+                            <svg class="w-4 h-4" :class="{'animate-spin': loading}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            <span>刷新</span>
+                        </button>
+                        <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-2xl p-6 shadow-sm card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">总情报数</p>
+                            <p class="text-3xl font-bold text-gray-900">{{ stats.total_items || 0 }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-6 shadow-sm card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">今日新增</p>
+                            <p class="text-3xl font-bold text-green-600">{{ stats.items_today || 0 }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-6 shadow-sm card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">高相关性未读</p>
+                            <p class="text-3xl font-bold text-purple-600">{{ stats.high_relevance_unread || 0 }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-6 shadow-sm card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">待处理</p>
+                            <p class="text-3xl font-bold text-orange-600">{{ stats.unprocessed_items || 0 }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                            <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Intelligence List -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-2xl shadow-sm">
+                        <div class="p-6 border-b border-gray-100">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="text-lg font-bold text-gray-900">最新情报</h2>
+                                <div class="flex space-x-2">
+                                    <select v-model="filterCategory" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">全部分类</option>
+                                        <option value="algorithm">算法</option>
+                                        <option value="product">产品</option>
+                                        <option value="development_tool">开发工具</option>
+                                        <option value="research_paper">研究论文</option>
+                                        <option value="industry_news">行业动态</option>
+                                        <option value="tutorial">教程</option>
+                                    </select>
+                                    <select v-model="filterSource" class="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">全部来源</option>
+                                        <option value="arxiv">arXiv</option>
+                                        <option value="github">GitHub</option>
+                                        <option value="hackernews">Hacker News</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <div class="flex-1 relative">
+                                    <input
+                                        v-model="searchQuery"
+                                        type="text"
+                                        placeholder="搜索情报..."
+                                        class="w-full px-4 py-2 pl-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                    <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                    </svg>
+                                </div>
+                                <label class="flex items-center space-x-2 text-sm text-gray-600">
+                                    <input v-model="showUnreadOnly" type="checkbox" class="rounded border-gray-300">
+                                    <span>仅未读</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="divide-y divide-gray-100">
+                            <div
+                                v-for="item in filteredItems"
+                                :key="item.id"
+                                @click="openItem(item)"
+                                class="p-6 hover:bg-gray-50 cursor-pointer transition-colors"
+                                :class="{'bg-blue-50/50': !item.is_read}"
+                            >
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1 pr-4">
+                                        <div class="flex items-center space-x-2 mb-2">
+                                            <span :class="getCategoryClass(item.category)" class="px-2 py-0.5 text-xs font-medium rounded-full">
+                                                {{ getCategoryLabel(item.category) }}
+                                            </span>
+                                            <span class="text-xs text-gray-500">{{ item.source_name }}</span>
+                                            <span v-if="!item.is_read" class="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                        </div>
+                                        <h3 class="font-semibold text-gray-900 mb-1 line-clamp-2">{{ item.title }}</h3>
+                                        <p v-if="item.summary" class="text-sm text-gray-600 line-clamp-2 mb-2">{{ item.summary }}</p>
+                                        <div class="flex items-center space-x-4 text-xs text-gray-500">
+                                            <span>{{ formatDate(item.created_at) }}</span>
+                                            <div class="flex items-center space-x-1">
+                                                <span>相关度:</span>
+                                                <div class="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                    <div
+                                                        class="h-full rounded-full"
+                                                        :class="getRelevanceClass(item.relevance_score)"
+                                                        :style="{width: (item.relevance_score * 100) + '%'}"
+                                                    ></div>
+                                                </div>
+                                                <span>{{ Math.round(item.relevance_score * 100) }}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <a
+                                        :href="item.url"
+                                        target="_blank"
+                                        @click.stop
+                                        class="text-gray-400 hover:text-blue-600 transition-colors"
+                                    >
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                        </svg>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="p-4 border-t border-gray-100 flex items-center justify-between">
+                            <button
+                                @click="prevPage"
+                                :disabled="currentPage === 1"
+                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                上一页
+                            </button>
+                            <span class="text-sm text-gray-600">第 {{ currentPage }} 页</span>
+                            <button
+                                @click="nextPage"
+                                :disabled="!hasMore"
+                                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                下一页
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="space-y-6">
+                    <!-- Category Distribution -->
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4">分类分布</h3>
+                        <div class="space-y-3">
+                            <div v-for="(count, category) in stats.by_category" :key="category" class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <span :class="getCategoryClass(category)" class="w-3 h-3 rounded-full"></span>
+                                    <span class="text-sm text-gray-600">{{ getCategoryLabel(category) }}</span>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900">{{ count }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Source Distribution -->
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4">来源分布</h3>
+                        <div class="space-y-3">
+                            <div v-for="(count, source) in stats.by_source" :key="source" class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600 capitalize">{{ source }}</span>
+                                <span class="text-sm font-medium text-gray-900">{{ count }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Reports -->
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4">最新报告</h3>
+                        <div class="space-y-3">
+                            <div v-for="report in recentReports" :key="report.id" class="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors">
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <span class="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">{{ report.type }}</span>
+                                    <span class="text-xs text-gray-500">{{ formatDate(report.created_at) }}</span>
+                                </div>
+                                <p class="text-sm font-medium text-gray-900 line-clamp-2">{{ report.title }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="bg-white rounded-2xl shadow-sm p-6">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4">快速操作</h3>
+                        <div class="space-y-2">
+                            <button @click="triggerCrawl('arxiv')" class="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                <span>抓取 arXiv</span>
+                            </button>
+                            <button @click="triggerCrawl('github')" class="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                </svg>
+                                <span>抓取 GitHub</span>
+                            </button>
+                            <button @click="generateReport" class="w-full px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-colors flex items-center justify-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <span>生成日报</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Item Detail Modal -->
+        <div v-if="selectedItem" class="fixed inset-0 z-50 overflow-y-auto" @click.self="selectedItem = null">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+                <div class="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                    <div class="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+                        <div class="flex items-center justify-between">
+                            <span :class="getCategoryClass(selectedItem.category)" class="px-3 py-1 text-sm font-medium rounded-full bg-white/90">
+                                {{ getCategoryLabel(selectedItem.category) }}
+                            </span>
+                            <button @click="selectedItem = null" class="text-white/80 hover:text-white">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4">
+                        <h2 class="text-xl font-bold text-gray-900 mb-4">{{ selectedItem.title }}</h2>
+
+                        <div class="flex items-center space-x-4 mb-4 text-sm text-gray-600">
+                            <span>{{ selectedItem.source_name }}</span>
+                            <span>•</span>
+                            <span>{{ formatDate(selectedItem.created_at) }}</span>
+                            <span>•</span>
+                            <span>相关度: {{ Math.round(selectedItem.relevance_score * 100) }}%</span>
+                        </div>
+
+                        <div v-if="selectedItem.summary" class="mb-6">
+                            <h3 class="text-sm font-bold text-gray-700 mb-2">AI 摘要</h3>
+                            <p class="text-gray-600 bg-gray-50 p-4 rounded-lg">{{ selectedItem.summary }}</p>
+                        </div>
+
+                        <div v-if="selectedItem.key_points?.length" class="mb-6">
+                            <h3 class="text-sm font-bold text-gray-700 mb-2">关键要点</h3>
+                            <ul class="list-disc list-inside space-y-1 text-gray-600">
+                                <li v-for="point in selectedItem.key_points" :key="point">{{ point }}</li>
+                            </ul>
+                        </div>
+
+                        <div v-if="selectedItem.relevance_reasoning" class="mb-6">
+                            <h3 class="text-sm font-bold text-gray-700 mb-2">相关性分析</h3>
+                            <p class="text-gray-600">{{ selectedItem.relevance_reasoning }}</p>
+                        </div>
+
+                        <div v-if="selectedItem.tags?.length" class="mb-6">
+                            <h3 class="text-sm font-bold text-gray-700 mb-2">标签</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <span v-for="tag in selectedItem.tags" :key="tag" class="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">
+                                    {{ tag }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 bg-gray-50 flex items-center justify-between">
+                        <a :href="selectedItem.url" target="_blank" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+                            <span>查看原文</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            </svg>
+                        </a>
+                        <button @click="markAsRead(selectedItem.id)" class="px-4 py-2 text-gray-700 hover:text-gray-900">
+                            标记为已读
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div v-if="toast" class="fixed bottom-4 right-4 z-50">
+            <div class="bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2">
+                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>{{ toast }}</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    loading: false,
+                    stats: {
+                        total_items: 0,
+                        items_today: 0,
+                        high_relevance_unread: 0,
+                        unprocessed_items: 0,
+                        by_category: {},
+                        by_source: {}
+                    },
+                    items: [],
+                    recentReports: [],
+                    currentPage: 1,
+                    hasMore: false,
+                    searchQuery: '',
+                    filterCategory: '',
+                    filterSource: '',
+                    showUnreadOnly: false,
+                    selectedItem: null,
+                    toast: null,
+                    // Mock data for demonstration
+                    mockItems: [
+                        {
+                            id: 1,
+                            title: "Large Language Models for Educational Assessment: A Comprehensive Survey",
+                            url: "https://arxiv.org/abs/2403.12345",
+                            source_name: "arXiv",
+                            category: "research_paper",
+                            relevance_score: 0.92,
+                            summary: "本文全面综述了大语言模型在教育评估领域的应用，提出了一种新的评估框架，能够显著提高评分准确性和效率。",
+                            key_points: ["提出新的LLM评估框架", "在5个教育场景验证", "准确率提升15%", "支持多语言评估"],
+                            tags: ["LLM", "Education", "Assessment", "AI"],
+                            is_read: false,
+                            created_at: new Date().toISOString()
+                        },
+                        {
+                            id: 2,
+                            title: "OpenAI 发布 GPT-4 Turbo 新版本，教育场景性能大幅提升",
+                            url: "https://openai.com/blog",
+                            source_name: "OpenAI Blog",
+                            category: "product",
+                            relevance_score: 0.88,
+                            summary: "新版本在数学推理和代码生成方面有显著改进，特别适合教育场景中的解题辅导。",
+                            key_points: ["数学推理能力提升40%", "代码解释更清晰", "支持更长上下文", "API成本降低"],
+                            tags: ["GPT-4", "OpenAI", "Education", "API"],
+                            is_read: false,
+                            created_at: new Date(Date.now() - 3600000).toISOString()
+                        },
+                        {
+                            id: 3,
+                            title: "GitHub 热门：开源 AI 教学助手框架 TeachersAI",
+                            url: "https://github.com/example/teachers-ai",
+                            source_name: "GitHub",
+                            category: "development_tool",
+                            relevance_score: 0.85,
+                            summary: "一个开源的AI教学助手框架，支持个性化学习路径规划和实时反馈。",
+                            key_points: ["支持多种教学场景", "模块化设计易于扩展", "已有1000+ Stars", "活跃的社区支持"],
+                            tags: ["Open Source", "Teaching", "Framework", "GitHub"],
+                            is_read: true,
+                            created_at: new Date(Date.now() - 7200000).toISOString()
+                        },
+                        {
+                            id: 4,
+                            title: "计算机视觉在智慧教室中的应用：最新研究进展",
+                            url: "https://arxiv.org/abs/2403.67890",
+                            source_name: "arXiv",
+                            category: "algorithm",
+                            relevance_score: 0.78,
+                            summary: "探讨了CV技术在课堂行为分析、注意力检测等方面的最新应用。",
+                            key_points: ["实时行为分析准确率95%+", "边缘设备部署优化", "隐私保护机制", "与慧瞳产品高度相关"],
+                            tags: ["Computer Vision", "Smart Classroom", "Edge AI"],
+                            is_read: false,
+                            created_at: new Date(Date.now() - 10800000).toISOString()
+                        },
+                        {
+                            id: 5,
+                            title: "AI教育产品的用户体验设计最佳实践",
+                            url: "https://example.com/blog",
+                            source_name: "Tech Blog",
+                            category: "tutorial",
+                            relevance_score: 0.65,
+                            summary: "总结了10个成功的AI教育产品的UX设计模式。",
+                            tags: ["UX Design", "Product", "Education"],
+                            is_read: true,
+                            created_at: new Date(Date.now() - 14400000).toISOString()
+                        }
+                    ]
+                };
+            },
+            computed: {
+                filteredItems() {
+                    let items = this.items.length > 0 ? this.items : this.mockItems;
+
+                    if (this.filterCategory) {
+                        items = items.filter(i => i.category === this.filterCategory);
+                    }
+                    if (this.filterSource) {
+                        items = items.filter(i => i.source_type === this.filterSource || (i.source_name && i.source_name.toLowerCase().includes(this.filterSource)));
+                    }
+                    if (this.searchQuery) {
+                        const q = this.searchQuery.toLowerCase();
+                        items = items.filter(i =>
+                            i.title.toLowerCase().includes(q) ||
+                            (i.summary && i.summary.toLowerCase().includes(q))
+                        );
+                    }
+                    if (this.showUnreadOnly) {
+                        items = items.filter(i => !i.is_read);
+                    }
+
+                    return items;
+                }
+            },
+            mounted() {
+                this.loadData();
+            },
+            methods: {
+                async loadData() {
+                    this.loading = true;
+                    try {
+                        // Fetch real data from API
+                        const statsResponse = await fetch('/api/v1/dashboard/stats');
+                        if (statsResponse.ok) {
+                            this.stats = await statsResponse.json();
+                        }
+
+                        const itemsResponse = await fetch('/api/v1/dashboard/items?limit=20');
+                        if (itemsResponse.ok) {
+                            const data = await itemsResponse.json();
+                            this.items = data.items || [];
+                            this.hasMore = data.pagination?.has_more || false;
+                        }
+
+                        const reportsResponse = await fetch('/api/v1/dashboard/reports?limit=5');
+                        if (reportsResponse.ok) {
+                            const data = await reportsResponse.json();
+                            this.recentReports = data.reports || [];
+                        }
+                    } catch (error) {
+                        console.error('Failed to load data:', error);
+                        this.showToast('数据加载失败，显示模拟数据');
+                        // Use mock data as fallback
+                        this.items = this.mockItems;
+                    }
+                    this.loading = false;
+                },
+                refreshData() {
+                    this.loadData();
+                    this.showToast('数据已刷新');
+                },
+                openItem(item) {
+                    this.selectedItem = item;
+                },
+                async markAsRead(id) {
+                    try {
+                        const response = await fetch(`/api/v1/dashboard/items/${id}/read`, {
+                            method: 'POST'
+                        });
+                        if (response.ok) {
+                            const item = this.items.find(i => i.id === id);
+                            if (item) item.is_read = true;
+                            this.showToast('已标记为已读');
+                        }
+                    } catch (error) {
+                        console.error('Failed:', error);
+                    }
+                    this.selectedItem = null;
+                },
+                prevPage() {
+                    if (this.currentPage > 1) {
+                        this.currentPage--;
+                    }
+                },
+                nextPage() {
+                    this.currentPage++;
+                },
+                triggerCrawl(source) {
+                    this.showToast(`正在抓取 ${source}...`);
+                    // In real implementation: fetch(`/api/v1/dashboard/trigger-crawl?source_type=${source}`, {method: 'POST'})
+                },
+                generateReport() {
+                    this.showToast('正在生成日报...');
+                },
+                getCategoryClass(category) {
+                    const classes = {
+                        algorithm: 'category-algorithm',
+                        product: 'category-product',
+                        development_tool: 'category-tool',
+                        research_paper: 'category-paper',
+                        industry_news: 'category-news',
+                        tutorial: 'category-tutorial'
+                    };
+                    return classes[category] || 'bg-gray-100 text-gray-700';
+                },
+                getCategoryLabel(category) {
+                    const labels = {
+                        algorithm: '算法',
+                        product: '产品',
+                        development_tool: '开发工具',
+                        research_paper: '研究论文',
+                        industry_news: '行业动态',
+                        tutorial: '教程',
+                        opinion: '观点',
+                        uncategorized: '未分类'
+                    };
+                    return labels[category] || category;
+                },
+                getRelevanceClass(score) {
+                    if (score >= 0.8) return 'relevance-high';
+                    if (score >= 0.5) return 'relevance-medium';
+                    return 'relevance-low';
+                },
+                formatDate(dateStr) {
+                    const date = new Date(dateStr);
+                    const now = new Date();
+                    const diff = now - date;
+                    const hours = Math.floor(diff / 3600000);
+                    const days = Math.floor(diff / 86400000);
+
+                    if (hours < 1) return '刚刚';
+                    if (hours < 24) return `${hours}小时前`;
+                    if (days < 7) return `${days}天前`;
+                    return date.toLocaleDateString('zh-CN');
+                },
+                showToast(message) {
+                    this.toast = message;
+                    setTimeout(() => {
+                        this.toast = null;
+                    }, 3000);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
