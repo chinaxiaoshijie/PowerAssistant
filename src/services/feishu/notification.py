@@ -316,6 +316,350 @@ class FeishuNotificationService:
             await self._client.close()
             self._client = None
 
+    async def send_weekly_report(
+        self,
+        chat_id: str,
+        report: WeeklyReport,
+    ) -> bool:
+        """Send weekly report to Feishu chat.
 
-# JSON import
+        Args:
+            chat_id: Feishu chat ID
+            report: Weekly report instance
+
+        Returns:
+            True if sent successfully
+        """
+        self._logger.info(
+            "sending_weekly_report",
+            chat_id=chat_id,
+            period=f"{report.period_start} to {report.period_end}",
+        )
+
+        try:
+            client = await self._get_client()
+
+            card = self._build_weekly_report_card(report)
+
+            await self._send_card_message(chat_id, card)
+
+            self._logger.info(
+                "weekly_report_sent",
+                chat_id=chat_id,
+                period=report.period_start,
+            )
+            return True
+
+        except Exception as e:
+            self._logger.error(
+                "weekly_report_failed",
+                chat_id=chat_id,
+                error=str(e),
+            )
+            return False
+
+    def _build_weekly_report_card(self, report: WeeklyReport) -> dict:
+        """Build card for weekly report.
+
+        Args:
+            report: Weekly report data
+
+        Returns:
+            Card message JSON
+        """
+        card = {
+            "config": {"wide_screen_mode": True},
+            "header": {
+                "title": {
+                    "tag": "plain_text",
+                    "content": f"📊 研发管理周报 - {report.period_start} 至 {report.period_end}",
+                },
+                "template": "blue",
+            },
+            "elements": [
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": f"**总体健康度**: {report.overall_health:.0%}",
+                    },
+                },
+                {"tag": "hr"},
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": "**关键指标**",
+                    },
+                },
+            ],
+        }
+
+        # Add key metrics
+        metrics_text = ""
+        for key, value in report.key_metrics.items():
+            metrics_text += f"- {key}: {value}\n"
+        card["elements"].append(
+            {
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": metrics_text},
+            }
+        )
+
+        # Add summary statistics
+        card["elements"].append({"tag": "hr"})
+        card["elements"].append(
+            {
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": "**本周概览**",
+                },
+            }
+        )
+        card["elements"].append(
+            {
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": (
+                        f"- ✅ 完成任务: {report.tasks_completed} 个\n"
+                        f"- 📋 进行中任务: {report.tasks_in_progress} 个\n"
+                        f"- 🎯 项目正常: {report.projects_on_track} 个\n"
+                        f"- ⚠️ 项目风险: {report.projects_at_risk} 个"
+                    ),
+                },
+            }
+        )
+
+        # Add achievements
+        if report.achievements:
+            card["elements"].append({"tag": "hr"})
+            card["elements"].append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": "**🎉 本周成就**",
+                    },
+                }
+            )
+            achievements_text = ""
+            for item in report.achievements:
+                achievements_text += f"- {item}\n"
+            card["elements"].append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": achievements_text,
+                    },
+                }
+            )
+
+        # Add challenges
+        if report.challenges:
+            card["elements"].append({"tag": "hr"})
+            card["elements"].append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": "**⚠️ 面临挑战**",
+                    },
+                }
+            )
+            challenges_text = ""
+            for item in report.challenges:
+                challenges_text += f"- {item}\n"
+            card["elements"].append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": challenges_text,
+                    },
+                }
+            )
+
+        # Add recommendations
+        if report.recommendations:
+            card["elements"].append({"tag": "hr"})
+            card["elements"].append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": "**💡 建议**",
+                    },
+                }
+            )
+            recommendations_text = ""
+            for item in report.recommendations:
+                recommendations_text += f"- {item}\n"
+            card["elements"].append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": recommendations_text,
+                    },
+                }
+            )
+
+        # Add highlights
+        if report.highlights:
+            card["elements"].append({"tag": "hr"})
+            card["elements"].append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": "**🌟 AI情报亮点**",
+                    },
+                }
+            )
+            highlights_text = ""
+            for highlight in report.highlights[:3]:
+                title = highlight.get("title", "")
+                desc = highlight.get("description", "")
+                highlights_text += f"- **{title}**: {desc}\n"
+            card["elements"].append(
+                {
+                    "tag": "div",
+                    "text": {
+                        "tag": "lark_md",
+                        "content": highlights_text,
+                    },
+                }
+            )
+
+        # Add footer
+        card["elements"].append({"tag": "hr"})
+        card["elements"].append(
+            {
+                "tag": "note",
+                "elements": [
+                    {
+                        "tag": "plain_text",
+                        "content": f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    }
+                ],
+            }
+        )
+
+        return card
+
+    async def send_ai_intelligence_summary(
+        self,
+        chat_id: str,
+        agent_name: str,
+        summary: str,
+        insights: List[dict],
+    ) -> bool:
+        """Send AI intelligence summary from agents.
+
+        Args:
+            chat_id: Feishu chat ID
+            agent_name: Name of the agent (e.g., "仕杰", "运明", "逍虓")
+            summary: AI-generated summary
+            insights: List of insights
+
+        Returns:
+            True if sent successfully
+        """
+        self._logger.info(
+            "sending_ai_intelligence_summary",
+            chat_id=chat_id,
+            agent=agent_name,
+        )
+
+        try:
+            client = await self._get_client()
+
+            card = {
+                "config": {"wide_screen_mode": True},
+                "header": {
+                    "title": {
+                        "tag": "plain_text",
+                        "content": f"🤖 {agent_name} 的智能洞察",
+                    },
+                    "template": "green",
+                },
+                "elements": [
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": "**AI生成摘要**",
+                        },
+                    },
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": summary,
+                        },
+                    },
+                ],
+            }
+
+            if insights:
+                card["elements"].append({"tag": "hr"})
+                card["elements"].append(
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": "**关键洞察**",
+                        },
+                    }
+                )
+
+                for insight in insights[:3]:
+                    title = insight.get("title", "N/A")
+                    summary_text = insight.get("summary", "")
+                    card["elements"].append(
+                        {
+                            "tag": "div",
+                            "text": {
+                                "tag": "lark_md",
+                                "content": f"- **{title}**: {summary_text}",
+                            },
+                        }
+                    )
+
+            card["elements"].append({"tag": "hr"})
+            card["elements"].append(
+                {
+                    "tag": "note",
+                    "elements": [
+                        {
+                            "tag": "plain_text",
+                            "content": f"发送时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                        }
+                    ],
+                }
+            )
+
+            await self._send_card_message(chat_id, card)
+
+            self._logger.info(
+                "ai_intelligence_summary_sent",
+                chat_id=chat_id,
+                agent=agent_name,
+            )
+            return True
+
+        except Exception as e:
+            self._logger.error(
+                "ai_intelligence_summary_failed",
+                chat_id=chat_id,
+                agent=agent_name,
+                error=str(e),
+            )
+            return False
+
+
 import json
+from src.services.report.report_generation import WeeklyReport

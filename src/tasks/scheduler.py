@@ -285,6 +285,12 @@ class IntelligenceScheduler:
         # Generate daily report at 9:00 AM
         self.schedule_daily_report(hour=9, minute=0)
 
+        # Generate weekly report on Monday at 10:00 AM
+        self.schedule_weekly_report(day_of_week="mon", hour=10, minute=0)
+
+        # Run AI agent analysis every 24 hours
+        self.schedule_agent_analysis(hours=24)
+
         # Sync Feishu organization every 1 hour
         self.schedule_feishu_sync(hours=1)
 
@@ -388,11 +394,127 @@ class IntelligenceScheduler:
                 items_included=len(report.highlights),
             )
 
-            # TODO: Send notification via Feishu
-            # await self._send_feishu_notification(report)
+            # Send notification via Feishu
+            try:
+                async with FeishuClient() as client:
+                    from src.services.feishu.notification import FeishuNotificationService
+
+                    notification_service = FeishuNotificationService(feishu_client=client)
+
+                    # TODO: 配置接收群组ID
+                    chat_id = "oc_xxx"  # 需要替换为实际的群聊ID
+
+                    await notification_service.send_daily_report(
+                        chat_id=chat_id,
+                        report_data={
+                            "title": "AI情报日报",
+                            "summary": report.summary or "今日无重要情报更新",
+                            "highlights": report.highlights,
+                            "stats": {
+                                "items_today": len(report.highlights),
+                                "high_relevance": len([h for h in report.highlights if h.get("relevance_score", 0) > 0.8]),
+                                "unread": 0,
+                            },
+                        },
+                    )
+
+                    self._logger.info("daily_report_notification_sent")
+
+            except Exception as e:
+                self._logger.warning("daily_report_notification_failed", error=str(e))
 
         except Exception as e:
             self._logger.error("daily_report_task_failed", error=str(e))
+        finally:
+            await session.close()
+
+    async def _weekly_report_task(self) -> None:
+        """Generate weekly report task."""
+        self._logger.info("starting_weekly_report_task")
+
+        session = await self._get_db_session()
+        try:
+            from src.services.report.report_generation import ReportGenerationService
+
+            service = ReportGenerationService(session)
+            report = await service.generate_weekly_report(week_offset=-1)  # 上周报告
+
+            self._logger.info(
+                "weekly_report_generated",
+                period=f"{report.period_start} to {report.period_end}",
+                health_score=report.overall_health,
+            )
+
+            # Send notification via Feishu
+            try:
+                async with FeishuClient() as client:
+                    from src.services.feishu.notification import FeishuNotificationService
+
+                    notification_service = FeishuNotificationService(feishu_client=client)
+
+                    # TODO: 配置接收群组ID
+                    chat_id = "oc_xxx"  # 需要替换为实际的群聊ID
+
+                    await notification_service.send_weekly_report(
+                        chat_id=chat_id,
+                        report=report,
+                    )
+
+                    self._logger.info("weekly_report_notification_sent")
+
+            except Exception as e:
+                self._logger.warning("weekly_report_notification_failed", error=str(e))
+
+        except Exception as e:
+            self._logger.error("weekly_report_task_failed", error=str(e))
+        finally:
+            await session.close()
+
+    async def _agent_analysis_task(self) -> None:
+        """Run all AI agents and send analysis results."""
+        self._logger.info("starting_agent_analysis_task")
+
+        session = await self._get_db_session()
+        try:
+            from src.services.ai_intelligence.agents import run_all_agents
+
+            results = await run_all_agents(session)
+
+            self._logger.info(
+                "agent_analysis_completed",
+                agents=list(results.get("agents", {}).keys()),
+            )
+
+            # Send agent analysis via Feishu
+            try:
+                async with FeishuClient() as client:
+                    from src.services.feishu.notification import FeishuNotificationService
+
+                    notification_service = FeishuNotificationService(feishu_client=client)
+
+                    # TODO: 配置接收群组ID
+                    chat_id = "oc_xxx"  # 需要替换为实际的群聊ID
+
+                    for agent_type, agent_result in results.get("agents", {}).items():
+                        agent_name = agent_result.get("agent", agent_type)
+                        data = agent_result.get("data", {})
+                        status = data.get("status")
+
+                        if status == "success":
+                            await notification_service.send_ai_intelligence_summary(
+                                chat_id=chat_id,
+                                agent_name=agent_name,
+                                summary=data.get("ai_summary", "暂无分析结果"),
+                                insights=data.get("insights", []),
+                            )
+
+                    self._logger.info("agent_analysis_notification_sent")
+
+            except Exception as e:
+                self._logger.warning("agent_analysis_notification_failed", error=str(e))
+
+        except Exception as e:
+            self._logger.error("agent_analysis_task_failed", error=str(e))
         finally:
             await session.close()
 
@@ -483,6 +605,63 @@ class IntelligenceScheduler:
         self._logger.info(
             "scheduled_daily_report",
             time=f"{hour:02d}:{minute:02d}",
+            job_id=job.id,
+        )
+
+    def schedule_weekly_report(
+        self,
+        day_of_week: str = "mon",
+        hour: int = 10,
+        minute: int = 0,
+    ) -> None:
+        """Schedule weekly report generation.
+
+        Args:
+            day_of_week: Day of week (mon/tue/wed/thu/fri/sat/sun)
+            hour: Hour of day (0-23)
+            minute: Minute of hour (0-59)
+        """
+        job_id = "weekly_report"
+
+        job = self.scheduler.add_job(
+            func=self._weekly_report_task,
+            trigger=CronTrigger(day_of_week=day_of_week, hour=hour, minute=minute),
+            id=job_id,
+            name="Generate weekly report",
+            replace_existing=True,
+        )
+
+        self._jobs[job_id] = job.id
+        self._logger.info(
+            "scheduled_weekly_report",
+            day=day_of_week,
+            time=f"{hour:02d}:{minute:02d}",
+            job_id=job.id,
+        )
+
+    def schedule_agent_analysis(
+        self,
+        hours: int = 24,
+    ) -> None:
+        """Schedule AI agent analysis.
+
+        Args:
+            hours: Interval in hours
+        """
+        job_id = "agent_analysis"
+
+        job = self.scheduler.add_job(
+            func=self._agent_analysis_task,
+            trigger=IntervalTrigger(hours=hours),
+            id=job_id,
+            name="Run AI agent analysis",
+            replace_existing=True,
+        )
+
+        self._jobs[job_id] = job.id
+        self._logger.info(
+            "scheduled_agent_analysis",
+            hours=hours,
             job_id=job.id,
         )
 
